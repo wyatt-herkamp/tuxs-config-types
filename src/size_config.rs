@@ -1,7 +1,28 @@
+/*
+MIT License
+
+Copyright (c) 2023 Wyatt Herkamp
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+ */
 use once_cell::sync::OnceCell;
-use rand::Rng;
 use regex::Regex;
-use std::borrow::Cow;
 use std::cmp::Ordering;
 use std::error::Error;
 use std::str::FromStr;
@@ -10,7 +31,7 @@ use strum::{
 };
 use thiserror::Error;
 static UNITS_REGEX: OnceCell<Regex> = OnceCell::new();
-
+type AnyError = Box<dyn Error + Send + Sync + 'static>;
 #[derive(
     Debug,
     Clone,
@@ -29,6 +50,7 @@ static UNITS_REGEX: OnceCell<Regex> = OnceCell::new();
     EnumIs,
 )]
 #[repr(usize)]
+#[non_exhaustive]
 pub enum Unit {
     #[default]
     #[strum(serialize = "B")]
@@ -63,11 +85,11 @@ impl Unit {
     }
 }
 #[derive(Debug, Error)]
-#[error("{0}")]
-pub struct InvalidSizeError(&'static str, Option<anyhow::Error>);
+#[error("{0}: {1:?}")]
+pub struct InvalidSizeError(&'static str, Option<AnyError>);
 
-impl From<(&'static str, anyhow::Error)> for InvalidSizeError {
-    fn from(value: (&'static str, anyhow::Error)) -> Self {
+impl From<(&'static str, AnyError)> for InvalidSizeError {
+    fn from(value: (&'static str, AnyError)) -> Self {
         Self(value.0, Some(value.1))
     }
 }
@@ -173,8 +195,8 @@ impl ConfigSize {
         self.size * (self.unit as usize)
     }
 }
-
-mod _serde {
+#[cfg(feature = "serde")]
+mod serde_impl {
     use super::ConfigSize;
     use serde::de::Error;
     use serde::{Deserialize, Deserializer};
@@ -226,13 +248,11 @@ mod _serde {
 }
 #[cfg(test)]
 mod tests {
-    use crate::configs::size_config::Unit;
-    use crate::configs::ConfigSize;
     use rand::Rng;
     use serde::{Deserialize, Serialize};
     use std::str::FromStr;
     use strum::IntoEnumIterator;
-
+    use super::*;
     #[test]
     pub fn test_unit_regex() {
         println!("{}", Unit::create_regex_string());
@@ -260,8 +280,8 @@ mod tests {
             let test = SerdeTest {
                 size: ConfigSize { size: number, unit },
             };
-            let string = toml::to_string_pretty(&test).unwrap();
-            let test2: SerdeTest = toml::from_str(&string).unwrap();
+            let string = serde_json::to_string(&test).unwrap();
+            let test2: SerdeTest = serde_json::from_str(&string).unwrap();
             assert_eq!(test.size, test2.size);
             println!("{:?} -> {} -> {:?}", test.size, string, test2.size)
         }
