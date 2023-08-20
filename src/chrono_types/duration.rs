@@ -21,7 +21,6 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
  */
-use std::cell::OnceCell;
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
@@ -29,6 +28,7 @@ use chrono::Duration;
 use serde::{Deserialize, Deserializer};
 use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
+use once_cell::sync::OnceCell;
 use regex::Regex;
 use strum::{
     AsRefStr, Display, EnumCount, EnumIs, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr,
