@@ -195,13 +195,19 @@ impl ConfigSize {
         self.size * (self.unit as usize)
     }
 }
+#[doc(hidden)]
 #[cfg(feature = "serde")]
-mod serde_impl {
+pub mod serde_impl {
     use super::ConfigSize;
     use serde::de::Error;
     use serde::{Deserialize, Deserializer};
     use std::str::FromStr;
-
+    pub fn serialize_as_u64<S>(size: &ConfigSize, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+    {
+        serializer.serialize_u64(size.get_as_bytes() as u64)
+    }
     impl serde::Serialize for ConfigSize {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
