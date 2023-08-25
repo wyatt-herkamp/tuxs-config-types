@@ -40,6 +40,7 @@ type AnyError = Box<dyn Error + Send + Sync + 'static>;
     Eq,
     PartialOrd,
     Ord,
+    Hash,
     Default,
     Display,
     EnumString,
@@ -98,7 +99,7 @@ impl From<&'static str> for InvalidSizeError {
         Self(value, None)
     }
 }
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ConfigSize {
     pub size: usize,
     pub unit: Unit,

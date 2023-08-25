@@ -59,6 +59,7 @@ Eq,
 PartialOrd,
 Ord,
 Default,
+Hash,
 Display,
 EnumString,
 AsRefStr,
@@ -124,7 +125,7 @@ impl Unit {
 /// duration_in_hours = "100h"
 /// duration_in_days = "10d"
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ConfigDuration {
     pub duration: Duration,
     pub unit: Unit,
