@@ -50,6 +50,7 @@ type AnyError = Box<dyn Error + Send + Sync + 'static>;
     EnumIter,
     EnumIs,
 )]
+#[cfg_attr(feature = "digestible", derive(digestible::Digestible))]
 #[repr(usize)]
 #[non_exhaustive]
 pub enum Unit {
@@ -100,6 +101,7 @@ impl From<&'static str> for InvalidSizeError {
     }
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "digestible", derive(digestible::Digestible))]
 pub struct ConfigSize {
     pub size: usize,
     pub unit: Unit,

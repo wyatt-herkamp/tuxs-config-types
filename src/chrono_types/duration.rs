@@ -69,6 +69,7 @@ EnumIter,
 EnumIs,
 )]
 #[repr(usize)]
+#[cfg_attr(feature = "digestible", derive(digestible::Digestible))]
 #[non_exhaustive]
 pub enum Unit {
     #[default]
@@ -126,7 +127,9 @@ impl Unit {
 /// duration_in_days = "10d"
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "digestible", derive(digestible::Digestible))]
 pub struct ConfigDuration {
+    #[cfg_attr(feature = "digestible", digestible(digest_with = digest_with_hash))]
     pub duration: Duration,
     pub unit: Unit,
 }
