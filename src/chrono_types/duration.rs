@@ -1,41 +1,19 @@
-/*
-MIT License
-
-Copyright (c) 2023 Wyatt Herkamp
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
- */
+use chrono::Duration;
+use derive_more::derive::{AsRef, Deref, DerefMut, From, Into};
+use regex::Regex;
 use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt::{Display, Formatter};
-use chrono::Duration;
-use serde::{Deserialize, Deserializer};
-use std::ops::{Deref, DerefMut};
 use std::str::FromStr;
-use once_cell::sync::OnceCell;
-use regex::Regex;
+use std::sync::OnceLock;
 use strum::{
     AsRefStr, Display, EnumCount, EnumIs, EnumIter, EnumString, IntoEnumIterator, IntoStaticStr,
 };
 use thiserror::Error;
 
-static UNITS_REGEX: OnceCell<Regex> = OnceCell::new();
+use crate::macros::{extend_string_from_and_to, serde_via_string_types};
+
+static UNITS_REGEX: OnceLock<Regex> = OnceLock::new();
 type AnyError = Box<dyn Error + Send + Sync + 'static>;
 #[derive(Debug, Error)]
 #[error("{0}: {1:?}")]
@@ -51,48 +29,52 @@ impl From<&'static str> for InvalidDurationError {
     }
 }
 #[derive(
-Debug,
-Clone,
-Copy,
-PartialEq,
-Eq,
-PartialOrd,
-Ord,
-Default,
-Hash,
-Display,
-EnumString,
-AsRefStr,
-EnumCount,
-IntoStaticStr,
-EnumIter,
-EnumIs,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Default,
+    Hash,
+    Display,
+    EnumString,
+    AsRefStr,
+    EnumCount,
+    IntoStaticStr,
+    EnumIter,
+    EnumIs,
 )]
 #[repr(usize)]
 #[cfg_attr(feature = "digestible", derive(digestible::Digestible))]
 #[non_exhaustive]
 pub enum Unit {
     #[default]
-    #[strum(serialize ="ms")]
+    #[strum(serialize = "ms")]
     Milliseconds,
-    #[strum(serialize ="s")]
+    #[strum(serialize = "s")]
     Seconds,
-    #[strum(serialize ="m")]
+    #[strum(serialize = "m")]
     Minutes,
-    #[strum(serialize ="h")]
+    #[strum(serialize = "h")]
     Hours,
-    #[strum(serialize ="d")]
+    #[strum(serialize = "d")]
     Days,
 }
+serde_via_string_types!(Unit);
+
 impl Unit {
     pub fn build_regex() -> Regex {
-        Regex::new(&Self::create_regex_string()).expect(
-            format!(
-                "Unable to Build Size Config Regex. Please Report: {:?}. ",
-                Self::create_regex_string()
-            )
-                .as_str(),
-        )
+        Regex::new(&Self::create_regex_string())
+            .map_err(|err| {
+                format!(
+                    "Unable to Build Size Config Regex. Please Report: {:?}. \n{:?}",
+                    Self::create_regex_string(),
+                    err
+                )
+            })
+            .unwrap()
     }
 
     fn create_regex_string() -> String {
@@ -126,14 +108,17 @@ impl Unit {
 /// duration_in_hours = "100h"
 /// duration_in_days = "10d"
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, From, Into, AsRef, Deref, DerefMut)]
 #[cfg_attr(feature = "digestible", derive(digestible::Digestible))]
 pub struct ConfigDuration {
     #[cfg_attr(feature = "digestible", digestible(digest_with = digest_with_hash))]
+    #[deref]
+    #[deref_mut]
     pub duration: Duration,
     pub unit: Unit,
 }
-impl Display for ConfigDuration{
+serde_via_string_types!(ConfigDuration);
+impl Display for ConfigDuration {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let length = match self.unit {
             Unit::Milliseconds => self.duration.num_milliseconds(),
@@ -146,13 +131,14 @@ impl Display for ConfigDuration{
         write!(f, "{}{}", length, self.unit)
     }
 }
-impl FromStr for ConfigDuration{
+impl FromStr for ConfigDuration {
     type Err = InvalidDurationError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // TODO:  Support for more complex durations like "1h30m"
         let regex = UNITS_REGEX.get_or_init(Unit::build_regex);
         let captures = regex
-            .captures(&s)
+            .captures(s)
             .ok_or_else(|| InvalidDurationError::from("Unable to parse duration"))?;
         let length = captures
             .name("length")
@@ -180,17 +166,13 @@ impl FromStr for ConfigDuration{
         Ok(Self { duration, unit })
     }
 }
-impl ConfigDuration{
-    pub fn into_inner(self) -> Duration{
+extend_string_from_and_to!(ConfigDuration, InvalidDurationError);
+impl ConfigDuration {
+    pub fn into_inner(self) -> Duration {
         self.duration
     }
 }
-
-impl Into<(Duration, Unit)> for ConfigDuration {
-    fn into(self) -> (Duration, Unit) {
-        (self.duration, self.unit)
-    }
-}
+#[allow(clippy::non_canonical_partial_ord_impl)]
 impl PartialOrd for ConfigDuration {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         self.duration.partial_cmp(&other.duration)
@@ -213,57 +195,5 @@ impl From<Duration> for ConfigDuration {
 impl From<ConfigDuration> for Duration {
     fn from(duration: ConfigDuration) -> Self {
         duration.duration
-    }
-}
-
-impl Deref for ConfigDuration {
-    type Target = Duration;
-
-    fn deref(&self) -> &Self::Target {
-        &self.duration
-    }
-}
-
-impl DerefMut for ConfigDuration {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.duration
-    }
-}
-
-impl AsRef<Duration> for ConfigDuration {
-    fn as_ref(&self) -> &Duration {
-        &self.duration
-    }
-}
-impl AsRef<Unit> for ConfigDuration {
-    fn as_ref(&self) -> &Unit {
-        &self.unit
-    }
-}
-impl AsMut<Duration> for ConfigDuration {
-    fn as_mut(&mut self) -> &mut Duration {
-        &mut self.duration
-    }
-}
-
-#[cfg(feature = "serde")]
-pub mod impl_serde{
-    use super::*;
-    impl serde::Serialize for ConfigDuration {
-        fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-            where
-                S: serde::Serializer,
-        {
-            self.to_string().serialize(serializer)
-        }
-    }
-    impl<'de> Deserialize<'de> for ConfigDuration {
-        fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-            where
-                D: Deserializer<'de>,
-        {
-            let value = String::deserialize(deserializer)?;
-            Self::from_str(&value).map_err(serde::de::Error::custom)
-        }
     }
 }
